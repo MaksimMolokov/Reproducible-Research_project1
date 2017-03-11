@@ -1,0 +1,133 @@
+---
+title: "PA1_tempalte"
+output: html_document
+---
+# Reproducible Research: Peer Assessment 1
+
+```{r setup, echo=TRUE}
+setwd("C:/DATA/coursera/5-6.Reproducible Research/week 2")
+library("knitr", lib.loc="C:/Program Files/R/R-3.3.1/library")
+library("ggplot2", lib.loc="C:/Program Files/R/R-3.3.1/library")
+library(plyr)
+base <- read.table(file="activity.csv", sep=",", dec=",", header=T, stringsAsFactors=F)
+head(base)
+dim(base)  
+summary(base)
+```
+
+## Processing the Data
+
+```{r,echo=TRUE}
+##выдергивать данные без NA
+clean <- base[!is.na(base$steps),]
+```
+
+## What is mean total number of steps taken per day?
+Calculate the total number of steps taken per day
+Make a histogram of the total number of steps taken each day
+
+```{r1, echo=TRUE}
+summ <- aggregate(base$steps ~ base$date, FUN=sum, )
+colnames(summ)<- c("Date", "Steps")
+hist(summ$Steps, breaks=5, xlab="Шаги, шт.",ylab="Количество повторов, шт.", main = "Количество шагов в день")
+```
+
+Calculate and report the mean and median of the total number of steps taken per day
+```{r3,echo=TRUE}
+as.integer(mean(summ$Steps))
+as.integer(median(summ$Steps))
+```
+
+Calculate the total number of steps per day using dplyr and group by date:
+```{r4,echo=TRUE}
+interval <- base %>%
+  filter(!is.na(steps)) %>%
+  group_by(interval) %>%
+  summarize(steps = mean(steps))
+
+```
+
+##What is the average daily activity pattern?
+
+```{r5,echo=TRUE}
+#какая средняя активность за день
+clean <- base[!is.na(base$steps),]
+##создать интервал с средним количеством шагов
+intervalTable <- ddply(clean, .(interval), summarize, Avg = mean(steps))
+ 
+##Создать график среднего числа шагов в интервале
+p <- ggplot(intervalTable, aes(x=interval, y=Avg), xlab = "Интервал", ylab="Среднее количество шагов")
+p + geom_point()+xlab("Интервал")+ylab("Среднее количество шагов")+ggtitle("Среднее количество шагов за интервал")
+```
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r6,echo=TRUE}
+#максимальное количество шагов за интервал
+maxSteps <- max(intervalTable$Avg)
+ 
+##Какой интервал содержит максимальное среднее количество шагов
+intervalTable[intervalTable$Avg==maxSteps,1]
+
+```
+The maximum number of steps for a 5-minute interval was 206 steps.
+
+The 5-minute interval which had the maximum number of steps was the 835 interval.
+
+##Imputing missing values
+Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r7,echo=TRUE}
+##Количество NA в исходном наборе данных
+nrow(base[is.na(base$steps),])
+
+```
+## Create the average number of steps per weekday and interval
+```{r8,echo=TRUE}
+avgTable <- ddply(clean, .(interval, day), summarize, Avg = mean(steps))
+## Создать набор данных со всеми NA для замещения
+nadata<- base[is.na(base$steps),]
+ 
+## Слияние данных NA c средним недельным интервалом
+newdata<-merge(nadata, avgTable, by=c("interval", "day"))
+ 
+## Переупорядочивание данных с подстрокой в том же формате что и исходные данные
+newdata2<- newdata[,c(6,4,1,2,5)]
+colnames(newdata2)<- c("steps", "date", "interval", "day", "DateTime")
+ 
+##Слияние средних значений из набора данных с NA и без 
+mergeData <- rbind(clean, newdata2)
+```
+
+##Create sum of steps per date to compare with step 1
+Mean of Steps with NA data taken care of
+Median of Steps with NA data taken care of
+```{r9,echo=TRUE}
+##Сумма шагов для каждой даты
+summ2 <- aggregate(mergeData$steps ~ mergeData$date, FUN=sum, )
+colnames(summ2)<- c("Date", "Steps")
+ 
+## Среднее количество шагов с NA
+as.integer(mean(summ2$Steps))
+ 
+## Медиана шагов с данными NA
+as.integer(median(summ2$Steps))
+```
+## Creating the histogram of total steps per day, categorized by data set to show impact
+```{r10,echo=TRUE}
+## Диаграмма суммарного количества шагов в день
+hist(summ2$Steps, breaks=5, xlab="Шаги", main = "Общее количество шагов с NA", col="red")
+hist(summ$Steps, breaks=5, xlab="Шаги", main = "Общее количество шагов с NA", col="blue", add=T)
+legend("topright", c("Imputed Data", "Non-NA Data"), fill=c("red", "blue") )
+
+```
+##Are there differences in activity patterns between weekdays and weekends?
+Average Steps per Interval Based on Type of Day
+```{r11,echo=TRUE}
+mergeData$DayCategory <- ifelse(mergeData$day %in% c("суббота", "воскресенье"), "Weekend", "Weekday")
+library(lattice) 
+library("lattice", lib.loc="C:/Program Files/R/R-3.3.1/library")
+intervalTable2 <- ddply(mergeData, .(interval, DayCategory), summarize, Avg = mean(steps))
+xyplot(Avg~interval|DayCategory, data=intervalTable2, type="o",  layout = c(1,2),
+       main="Среднее число шагов за дневной интервал", 
+       ylab="Среднее число шагов", xlab="Интервал")
+
+```
